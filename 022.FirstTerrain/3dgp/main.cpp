@@ -16,7 +16,17 @@ using namespace glm;
 
 // 3D Models
 C3dglTerrain terrain, road;
+C3dglModel lamp;
 
+C3dglSkyBox skybox;
+// GLSL Program
+C3dglProgram Program;
+
+//So we can switch between Day Light and Night time
+int dayLight = 0;
+int ambientLight = 1;
+int directionalLight = 1;
+int pointLight = 1;
 // camera position (for first person type camera navigation)
 mat4 matrixView;			// The View Matrix
 float angleTilt = 15.f;		// Tilt Angle
@@ -28,15 +38,46 @@ bool init()
 	glEnable(GL_DEPTH_TEST);	// depth test is necessary for most 3D scenes
 	glEnable(GL_NORMALIZE);		// normalization is needed by AssImp library models
 	glShadeModel(GL_SMOOTH);	// smooth shading mode is the default one; try GL_FLAT here!
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);	// this is the default one; try GL_LINE!
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);	// this is the default one; try GL_LINE! 
 
-	// setup lighting
-	glEnable(GL_LIGHTING);									// --- DEPRECATED
-	glEnable(GL_LIGHT0);									// --- DEPRECATED
+	// Initialise Shaders
+	C3dglShader VertexShader;
+	C3dglShader FragmentShader;
+
+	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
+	if (!VertexShader.LoadFromFile("shaders/basic.vert")) return false;
+	if (!VertexShader.Compile()) return false;
+
+	if (!FragmentShader.Create(GL_FRAGMENT_SHADER)) return false;
+	if (!FragmentShader.LoadFromFile("shaders/basic.frag")) return false;
+	if (!FragmentShader.Compile()) return false;
+
+	if (!Program.Create()) return false;
+	if (!Program.Attach(VertexShader)) return false;
+	if (!Program.Attach(FragmentShader)) return false;
+	if (!Program.Link()) return false;
+	if (!Program.Use(true)) return false;
+
 
 	// load your 3D models here!
 	if (!terrain.loadHeightmap("models\\heightmap.bmp", 10)) return false;
 	if (!road.loadHeightmap("models\\roadmap.bmp", 10)) return false;
+	if (!lamp.load("models\\street lamp - fancy.obj")) return false;
+
+
+	// load Sky Box     
+	if (!skybox.load("models\\TropicalSunnyDay\\TropicalSunnyDayFront1024.jpg",
+		"models\\TropicalSunnyDay\\TropicalSunnyDayLeft1024.jpg",
+		"models\\TropicalSunnyDay\\TropicalSunnyDayBack1024.jpg",
+		"models\\TropicalSunnyDay\\TropicalSunnyDayRight1024.jpg",
+		"models\\TropicalSunnyDay\\TropicalSunnyDayUp1024.jpg",
+		"models\\TropicalSunnyDay\\TropicalSunnyDayDown1024.jpg")) return false;
+
+	// Send the texture info to the shaders
+	Program.SendUniform("texture0", 0);
+
+
+
 
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = rotate(mat4(1.f), radians(angleTilt), vec3(1.f, 0.f, 0.f));
@@ -45,8 +86,7 @@ bool init()
 		vec3(4.0, 1.5, 0.0),
 		vec3(0.0, 1.0, 0.0));
 
-	// setup the screen background colour
-	glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // blue sky background
+
 
 	cout << endl;
 	cout << "Use:" << endl;
@@ -54,6 +94,12 @@ bool init()
 	cout << "  QE or PgUp/Dn to move the camera up and down" << endl;
 	cout << "  Drag the mouse to look around" << endl;
 	cout << endl;
+
+	// glut additional setup
+	glutSetVertexAttribCoord3(Program.GetAttribLocation("aVertex"));
+	glutSetVertexAttribNormal(Program.GetAttribLocation("aNormal"));
+
+
 
 	return true;
 }
@@ -76,29 +122,96 @@ void render()
 	m = rotate(m, radians(-angleTilt), vec3(1.f, 0.f, 0.f));			// switch tilt on
 	matrixView = m * matrixView;
 
+	// setup View Matrix
+	Program.SendUniform("matrixView", matrixView);
+
+
+
+	if (dayLight == 1) 
+	{
+		glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // Light Blue Sky 
+		// setup ambient light and material:
+		Program.SendUniform("lightAmbient.on", 1);
+		Program.SendUniform("lightAmbient.color", 0.1, 0.1, 0.1);
+
+		// setup directional light and the diffuse material:
+		Program.SendUniform("lightDir1.on", 1);
+		Program.SendUniform("lightDir1.direction", 0.75, 2.0, -1.0);
+		Program.SendUniform("lightDir1.diffuse", 1.0, 1.0, 1.0);
+		// render the skybox
+		m = matrixView;
+		skybox.render(m);
+		//When it is day time turn off the Lamp
+		Program.SendUniform("lightPoint1.on", 0);
+		Program.SendUniform("lightAmbient2.on", 0);
+
+
+	}
+	else 
+	{
+		glClearColor(0.0329f, 0.01f, 0.0839f, 1.0f); // Dark Blue Sky 
+
+		//When it is Night time turn off the directional and Ambient Light
+		Program.SendUniform("lightAmbient.on", 0);
+		Program.SendUniform("lightDir1.on", 0);
+		//Point Light (Diffuse)
+		Program.SendUniform("lightPoint1.on", 1);
+		Program.SendUniform("lightPoint1.position", 6.0f, 5.47f, 15.0f);
+		Program.SendUniform("lightPoint1.diffuse", 1.5, 1.5, 1.5);
+		//Point Light (Specular Extension)
+		Program.SendUniform("lightPoint1.specular", 1.0, 1.0, 1.0);
+		Program.SendUniform("materialSpecular", 0.0, 0.0, 0.0);
+		Program.SendUniform("shininess", 3.0);
+
+		//2nd Ambient Light To brighten up the bulb
+		Program.SendUniform("lightAmbient2.on", 1);
+		Program.SendUniform("lightAmbient2.color", 1.0, 1.0, 1.0);
+		//Light Attentuation
+		Program.SendUniform("attenuation", 0.5);
+	}
+
+
+
+
 	// move the camera up following the profile of terrain (Y coordinate of the terrain)
 	float terrainY = -terrain.getInterpolatedHeight(inverse(matrixView)[3][0], inverse(matrixView)[3][2]);
 	matrixView = translate(matrixView, vec3(0, terrainY, 0));
 
 	// setup materials - green (grass)
-	GLfloat rgbaGreen[] = { 0.2f, 0.8f, 0.2f };				// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, rgbaGreen);	// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, rgbaGreen);	// --- DEPRECATED
-
+	Program.SendUniform("materialDiffuse", 0.2f, 0.8f, 0.2f);
+	//Program.SendUniform("materialAmbient", 0.2f, 0.8f, 0.2f);
 	// render the terrain
 	m = translate(matrixView, vec3(0, 0, 0));
 	terrain.render(m);
 
 	// setup materials - grey (road)
-	GLfloat rgbaGrey[] = { 0.3f, 0.3f, 0.16f };				// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, rgbaGrey);	// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, rgbaGrey);	// --- DEPRECATED
-
+	Program.SendUniform("materialDiffuse", 0.3f, 0.3f, 0.16f);
+	//Program.SendUniform("materialAmbient", 0.3f, 0.3f, 0.16f);
 	// render the road
 	m = translate(matrixView, vec3(0, 0, 0));
 	m = translate(m, vec3(6.0f, 0.01f, 0.0f));
 	road.render(m);
 
+	//Black Lamp
+	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
+	//Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
+	m = translate(matrixView, vec3(6.0f, 4.25f, 15.0f));
+	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
+	lamp.render(m);
+
+	//White
+	Program.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);
+	Program.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
+	Program.SendUniform("materialSpecular", 1.0f, 1.0f, 1.0f);
+
+	//Bulb
+	m = matrixView;
+	m = translate(matrixView, vec3(6.0f, 5.47f, 15.0f));
+	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
+	Program.SendUniform("matrixModelView", m);
+	glutSolidSphere(1, 32, 32);
+	//Change the colour to Black After Bulb is rendered
+	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
 	// the camera must be moved down by terrainY to avoid unwanted effects
 	matrixView = translate(matrixView, vec3(0, -terrainY, 0));
 
@@ -107,6 +220,7 @@ void render()
 
 	// proceed the animation
 	glutPostRedisplay();
+
 }
 
 // called before window opened or resized - to setup the Projection Matrix
@@ -117,9 +231,8 @@ void reshape(int w, int h)
 	mat4 matrixProjection = perspective(radians(60.f), ratio, 0.02f, 1000.f);
 
 	// Setup the Projection Matrix
-	glMatrixMode(GL_PROJECTION);							// --- DEPRECATED
-	glLoadIdentity();										// --- DEPRECATED
-	glMultMatrixf((GLfloat*)&matrixProjection);				// --- DEPRECATED
+	Program.SendUniform("matrixProjection", matrixProjection);
+
 }
 
 // Handle WASDQE keys
@@ -133,6 +246,10 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'd': cam.x = std::min(cam.x * 1.05f, -0.01f); break;
 	case 'e': cam.y = std::max(cam.y * 1.05f, 0.01f); break;
 	case 'q': cam.y = std::min(cam.y * 1.05f, -0.01f); break;
+	case 'n': dayLight = 1 - dayLight; break;
+	case 't': directionalLight = 1 - directionalLight; break;
+	case 'y': ambientLight = 1 - ambientLight; break;
+	case 'u': pointLight = 1 - pointLight; break;
 	}
 	// speed limit
 	cam.x = std::max(-0.15f, std::min(0.15f, cam.x));
