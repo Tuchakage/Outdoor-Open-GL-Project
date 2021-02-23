@@ -56,6 +56,7 @@ void main(void)
 {
 
 	outColor = color;
+	//Atemmpt At Textures/ Skybox
 	//outColor *= texture(texture0, texCoord0);
 	if (lightPoint1.on == 1)
 	{
