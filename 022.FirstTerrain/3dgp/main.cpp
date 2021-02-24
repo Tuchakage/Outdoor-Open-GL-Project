@@ -307,6 +307,8 @@ void render()
 	//Black Material For Lamp
 	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
 	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
+	//Make The Material Shiny
+	Program.SendUniform("materialSpecular", 1.0, 1.0, 1.0);
 
 	//Black Lamp 1
 	m = translate(matrixView, vec3(6.2f, 4.25f, 15.0f));
@@ -341,7 +343,6 @@ void render()
 	//White Material For Light Bulbs
 	Program.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);
 	Program.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
-	Program.SendUniform("materialSpecular", 1.0f, 1.0f, 1.0f);
 
 	//Bulb 1
 	m = matrixView;
