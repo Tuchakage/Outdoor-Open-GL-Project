@@ -17,11 +17,14 @@ using namespace glm;
 // 3D Models
 C3dglTerrain terrain, road;
 C3dglModel lamp;
-
-C3dglSkyBox skybox;
+//Skybox
+C3dglSkyBox skybox, nightbox;
 // GLSL Program
 C3dglProgram Program;
-
+//Textures
+GLuint idTexGrass;
+GLuint idTexNone;
+GLuint idTexRoad;
 //So we can switch between Day Light and Night time
 int dayLight = 0;
 int ambientLight = 1;
@@ -43,6 +46,7 @@ bool init()
 	// Initialise Shaders
 	C3dglShader VertexShader;
 	C3dglShader FragmentShader;
+	C3dglBitmap grassbmp,roadbmp;
 
 	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
 	if (!VertexShader.LoadFromFile("shaders/basic.vert")) return false;
@@ -73,9 +77,47 @@ bool init()
 		"models\\TropicalSunnyDay\\TropicalSunnyDayUp1024.jpg",
 		"models\\TropicalSunnyDay\\TropicalSunnyDayDown1024.jpg")) return false;
 
+	if (!nightbox.load("models\\NightTime\\NightTimeFront1024.jpg",
+		"models\\NightTime\\NightTimeLeft1024.jpg",
+		"models\\NightTime\\NightTimeBack1024.jpg",
+		"models\\NightTime\\NightTimeRight1024.jpg",
+		"models\\NightTime\\NightTimeUp1024.jpg",
+		"models\\NightTime\\NightTimeDown1024.jpg")) return false;
+
+	//Load Textures here!
+	grassbmp.Load("models/grass.png", GL_RGBA);
+	if (!grassbmp.GetBits()) return false;
+
+	roadbmp.Load("models/road.png", GL_RGBA);
+	if (!roadbmp.GetBits()) return false;
+
+	//Preparing Texture Buffer For Grass
+	glActiveTexture(GL_TEXTURE0);
+	glGenTextures(1, &idTexGrass);
+	glBindTexture(GL_TEXTURE_2D, idTexGrass);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, grassbmp.GetWidth(), grassbmp.GetHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, grassbmp.GetBits());
+
+	//Preparing Texture Buffer For Road
+	glActiveTexture(GL_TEXTURE0);
+	glGenTextures(1, &idTexRoad);
+	glBindTexture(GL_TEXTURE_2D, idTexRoad);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, roadbmp.GetWidth(), roadbmp.GetHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, roadbmp.GetBits());
+
+
+
+	// none (simple-white) texture
+	glGenTextures(1, &idTexNone);
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	BYTE bytes[] = { 255, 255, 255 };
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_BGR, GL_UNSIGNED_BYTE, &bytes);
+
 	// Send the texture info to the shaders
 	Program.SendUniform("texture0", 0);
-
 
 
 
@@ -122,6 +164,11 @@ void render()
 	m = rotate(m, radians(-angleTilt), vec3(1.f, 0.f, 0.f));			// switch tilt on
 	matrixView = m * matrixView;
 
+
+	// move the camera up following the profile of terrain (Y coordinate of the terrain)
+	float terrainY = -terrain.getInterpolatedHeight(inverse(matrixView)[3][0], inverse(matrixView)[3][2]);
+	matrixView = translate(matrixView, vec3(0, terrainY, 0));
+
 	// setup View Matrix
 	Program.SendUniform("matrixView", matrixView);
 
@@ -131,16 +178,24 @@ void render()
 	{
 		glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // Light Blue Sky 
 		// setup ambient light and material:
+			//Turn on Both Ambient and Direction Light
 		Program.SendUniform("lightAmbient.on", 1);
+		Program.SendUniform("lightDir1.on", 1);
 		Program.SendUniform("lightAmbient.color", 0.1, 0.1, 0.1);
 
 		// setup directional light and the diffuse material:
-		Program.SendUniform("lightDir1.on", 1);
+
 		Program.SendUniform("lightDir1.direction", 0.75, 2.0, -1.0);
 		Program.SendUniform("lightDir1.diffuse", 1.0, 1.0, 1.0);
-		// render the skybox
+
+		//Temporarily set the Ambient light and Ambient material to white and diffuse material to black (This gets rid of the box and makes the skybox bright)
+		Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
+		Program.SendUniform("materialAmbient", 1.0, 1.0, 1.0);
+		Program.SendUniform("materialDiffuse", 0.0, 0.0, 0.0);
+		// render the skybox (Day Time)
 		m = matrixView;
 		skybox.render(m);
+		Program.SendUniform("lightAmbient.color", 0.4, 0.4, 0.4);
 		//When it is day time turn off the Lamp
 		Program.SendUniform("lightPoint1.on", 0);
 		Program.SendUniform("lightAmbient2.on", 0);
@@ -151,13 +206,15 @@ void render()
 	{
 		glClearColor(0.0329f, 0.01f, 0.0839f, 1.0f); // Dark Blue Sky 
 
-		//When it is Night time turn off the directional and Ambient Light
+			//Turn on Both Ambient and Direction Light
 		Program.SendUniform("lightAmbient.on", 0);
 		Program.SendUniform("lightDir1.on", 0);
+
+
 		//Point Light (Diffuse)
 		Program.SendUniform("lightPoint1.on", 1);
 		Program.SendUniform("lightPoint1.position", 6.0f, 5.47f, 15.0f);
-		Program.SendUniform("lightPoint1.diffuse", 1.5, 1.5, 1.5);
+		Program.SendUniform("lightPoint1.diffuse", 0.4, 0.4, 0.4);
 		//Point Light (Specular Extension)
 		Program.SendUniform("lightPoint1.specular", 1.0, 1.0, 1.0);
 		Program.SendUniform("materialSpecular", 0.0, 0.0, 0.0);
@@ -167,22 +224,34 @@ void render()
 		Program.SendUniform("lightAmbient2.on", 1);
 		Program.SendUniform("lightAmbient2.color", 1.0, 1.0, 1.0);
 		//Light Attentuation
-		Program.SendUniform("attenuation", 0.5);
+		Program.SendUniform("attenuation", 0.2);
+
+		//This line of code brightens the scene up a tiny bit, enough so that we can see the Night Sky
+		Program.SendUniform("materialAmbient", 0.1, 0.1, 0.1);
+		//This stops the shine that happens on the sky box when you get near the lamps
+		Program.SendUniform("materialDiffuse", 0.0, 0.0, 0.0);
+		// render the skybox (Night Time)
+		m = matrixView;
+		nightbox.render(m);
+		//After the Skybox has finished rendering then set Material Diffuse to white so that point light will work on the scene properly
+		Program.SendUniform("materialDiffuse", 1.0, 1.0, 1.0);
 	}
 
 
 
 
-	// move the camera up following the profile of terrain (Y coordinate of the terrain)
-	float terrainY = -terrain.getInterpolatedHeight(inverse(matrixView)[3][0], inverse(matrixView)[3][2]);
-	matrixView = translate(matrixView, vec3(0, terrainY, 0));
-
+	//Bind Grass Texture To Terrain
+	//glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, idTexGrass);
 	// setup materials - green (grass)
-	Program.SendUniform("materialDiffuse", 0.2f, 0.8f, 0.2f);
+	//Program.SendUniform("materialDiffuse", 0.2f, 0.8f, 0.2f);
 	//Program.SendUniform("materialAmbient", 0.2f, 0.8f, 0.2f);
 	// render the terrain
 	m = translate(matrixView, vec3(0, 0, 0));
 	terrain.render(m);
+
+
+	glBindTexture(GL_TEXTURE_2D, idTexRoad);
 
 	// setup materials - grey (road)
 	Program.SendUniform("materialDiffuse", 0.3f, 0.3f, 0.16f);
@@ -191,10 +260,11 @@ void render()
 	m = translate(matrixView, vec3(0, 0, 0));
 	m = translate(m, vec3(6.0f, 0.01f, 0.0f));
 	road.render(m);
-
+	//No Texture
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
 	//Black Lamp
 	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
-	//Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
+	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
 	m = translate(matrixView, vec3(6.0f, 4.25f, 15.0f));
 	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
 	lamp.render(m);
