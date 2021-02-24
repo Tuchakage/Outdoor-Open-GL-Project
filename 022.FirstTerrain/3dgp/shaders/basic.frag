@@ -9,6 +9,7 @@ uniform vec3 materialDiffuse;
 uniform vec3 materialSpecular;
 uniform float shininess;
 uniform float attenuation;
+uniform int atton;
 
 //Input Variables (From Vertex Shaders)
 in vec4 color;
@@ -26,7 +27,7 @@ struct POINT
 	vec3 diffuse;
 	vec3 specular;
 };
-uniform POINT lightPoint1, lightpoint2;
+uniform POINT lightPoint1, lightPoint2, lightPoint3, lightPoint4, lightPoint5, lightPoint6;
 
 vec4 PointLight(POINT light)
 {
@@ -50,17 +51,51 @@ vec4 PointLight(POINT light)
 	float dist = length(matrixView * vec4(light.position, 1) - position);
 	float att = 1 / (attenuation * dist * dist);
 
-	return color * att;
+	if (atton == 1)
+	{
+		return color * att;
+	}
+	else
+	{
+		return color;
+	}
+	
 }
 void main(void) 
 {
 
 	outColor = color;
-	//Atemmpt At Textures/ Skybox
 	
 	if (lightPoint1.on == 1)
 	{
 		outColor += PointLight(lightPoint1);
 	} 
+
+	if (lightPoint2.on == 1)
+	{
+		outColor += PointLight(lightPoint2);
+	} 
+
+	if (lightPoint3.on == 1)
+	{
+		outColor += PointLight(lightPoint3);
+	} 
+
+	if (lightPoint4.on == 1)
+	{
+		outColor += PointLight(lightPoint4);
+	} 
+
+	if (lightPoint5.on == 1)
+	{
+		outColor += PointLight(lightPoint5);
+	} 
+
+	if (lightPoint6.on == 1)
+	{
+		outColor += PointLight(lightPoint6);
+	} 
+
 	outColor *= texture(texture0, texCoord0);
+
 }

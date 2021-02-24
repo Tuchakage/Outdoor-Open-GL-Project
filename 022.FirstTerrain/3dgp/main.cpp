@@ -27,9 +27,8 @@ GLuint idTexNone;
 GLuint idTexRoad;
 //So we can switch between Day Light and Night time
 int dayLight = 0;
-int ambientLight = 1;
-int directionalLight = 1;
-int pointLight = 1;
+//So we can turn on and off the attenuation
+int atton = 1;
 // camera position (for first person type camera navigation)
 mat4 matrixView;			// The View Matrix
 float angleTilt = 15.f;		// Tilt Angle
@@ -120,7 +119,6 @@ bool init()
 	Program.SendUniform("texture0", 0);
 
 
-
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = rotate(mat4(1.f), radians(angleTilt), vec3(1.f, 0.f, 0.f));
 	matrixView *= lookAt(
@@ -135,6 +133,8 @@ bool init()
 	cout << "  WASD or arrow key to navigate" << endl;
 	cout << "  QE or PgUp/Dn to move the camera up and down" << endl;
 	cout << "  Drag the mouse to look around" << endl;
+	cout << "  N to switch between day and night" << endl;
+	cout << "  T to switch between attenuation on and off" << endl;
 	cout << endl;
 
 	// glut additional setup
@@ -180,11 +180,10 @@ void render()
 		// setup ambient light and material:
 			//Turn on Both Ambient and Direction Light
 		Program.SendUniform("lightAmbient.on", 1);
-		Program.SendUniform("lightDir1.on", 1);
 		Program.SendUniform("lightAmbient.color", 0.1, 0.1, 0.1);
 
 		// setup directional light and the diffuse material:
-
+		Program.SendUniform("lightDir1.on", 1);
 		Program.SendUniform("lightDir1.direction", 0.75, 2.0, -1.0);
 		Program.SendUniform("lightDir1.diffuse", 1.0, 1.0, 1.0);
 
@@ -198,6 +197,11 @@ void render()
 		Program.SendUniform("lightAmbient.color", 0.4, 0.4, 0.4);
 		//When it is day time turn off the Lamp
 		Program.SendUniform("lightPoint1.on", 0);
+		Program.SendUniform("lightPoint2.on", 0);
+		Program.SendUniform("lightPoint3.on", 0);
+		Program.SendUniform("lightPoint4.on", 0);
+		Program.SendUniform("lightPoint5.on", 0);
+		Program.SendUniform("lightPoint6.on", 0);
 		Program.SendUniform("lightAmbient2.on", 0);
 
 
@@ -206,17 +210,54 @@ void render()
 	{
 		glClearColor(0.0329f, 0.01f, 0.0839f, 1.0f); // Dark Blue Sky 
 
-			//Turn on Both Ambient and Direction Light
+		//Turn on Both Ambient and Direction Light
 		Program.SendUniform("lightAmbient.on", 0);
 		Program.SendUniform("lightDir1.on", 0);
+		//Switch between Attenuation being on and off
+		Program.SendUniform("atton", atton);
 
-
-		//Point Light (Diffuse)
+		//Point Light 1 (Diffuse)
 		Program.SendUniform("lightPoint1.on", 1);
-		Program.SendUniform("lightPoint1.position", 6.0f, 5.47f, 15.0f);
+		Program.SendUniform("lightPoint1.position", 6.2f, 5.47f, 15.0f);
 		Program.SendUniform("lightPoint1.diffuse", 0.4, 0.4, 0.4);
-		//Point Light (Specular Extension)
+		//Point Light 1 (Specular Extension)
 		Program.SendUniform("lightPoint1.specular", 1.0, 1.0, 1.0);
+
+		//Point Light 2 (Diffuse)
+		Program.SendUniform("lightPoint2.on", 1);
+		Program.SendUniform("lightPoint2.position", 4.7f, 5.12f, 10.0f);
+		Program.SendUniform("lightPoint2.diffuse", 0.4, 0.4, 0.4);
+		//Point Light 2 (Specular Extension)
+		Program.SendUniform("lightPoint2.specular", 1.0, 1.0, 1.0);
+
+		//Point Light 3 (Diffuse)
+		Program.SendUniform("lightPoint3.on", 1);
+		Program.SendUniform("lightPoint3.position", 4.7f, 4.27f, 5.0f);
+		Program.SendUniform("lightPoint3.diffuse", 0.4, 0.4, 0.4);
+		//Point Light 3 (Specular Extension)
+		Program.SendUniform("lightPoint3.specular", 1.0, 1.0, 1.0);
+
+		//Point Light 4 (Diffuse)
+		Program.SendUniform("lightPoint4.on", 1);
+		Program.SendUniform("lightPoint4.position", 6.2f, 4.27f, 0.0f);
+		Program.SendUniform("lightPoint4.diffuse", 0.4, 0.4, 0.4);
+		//Point Light 4 (Specular Extension)
+		Program.SendUniform("lightPoint4.specular", 1.0, 1.0, 1.0);
+
+		//Point Light 5 (Diffuse)
+		Program.SendUniform("lightPoint5.on", 1);
+		Program.SendUniform("lightPoint5.position", 4.7f, 4.57f, -5.0f);
+		Program.SendUniform("lightPoint5.diffuse", 0.4, 0.4, 0.4);
+		//Point Light 5 (Specular Extension)
+		Program.SendUniform("lightPoint5.specular", 1.0, 1.0, 1.0);
+
+		//Point Light 6 (Diffuse)
+		Program.SendUniform("lightPoint6.on", 1);
+		Program.SendUniform("lightPoint6.position", 4.7f, 4.72f, 20.0f);
+		Program.SendUniform("lightPoint6.diffuse", 0.4, 0.4, 0.4);
+		//Point Light 6 (Specular Extension)
+		Program.SendUniform("lightPoint6.specular", 1.0, 1.0, 1.0);
+
 		Program.SendUniform("materialSpecular", 0.0, 0.0, 0.0);
 		Program.SendUniform("shininess", 3.0);
 
@@ -262,26 +303,94 @@ void render()
 	road.render(m);
 	//No Texture
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
-	//Black Lamp
+	
+	//Black Material For Lamp
 	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
 	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
-	m = translate(matrixView, vec3(6.0f, 4.25f, 15.0f));
+
+	//Black Lamp 1
+	m = translate(matrixView, vec3(6.2f, 4.25f, 15.0f));
 	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
 	lamp.render(m);
 
-	//White
+	//Black Lamp 2
+	m = translate(matrixView, vec3(4.7f, 3.9f, 10.0f));
+	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
+	lamp.render(m);
+
+	//Black Lamp 3
+	m = translate(matrixView, vec3(4.7f, 3.05f, 5.0f));
+	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
+	lamp.render(m);
+
+	//Black Lamp 4
+	m = translate(matrixView, vec3(6.2f, 3.05f, 0.0f));
+	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
+	lamp.render(m);
+
+	//Black Lamp 5
+	m = translate(matrixView, vec3(4.7f, 3.35f, -5.0f));
+	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
+	lamp.render(m);
+
+	//Black Lamp 6
+	m = translate(matrixView, vec3(4.7f, 3.5f, 20.0f));
+	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
+	lamp.render(m);
+
+	//White Material For Light Bulbs
 	Program.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);
 	Program.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
 	Program.SendUniform("materialSpecular", 1.0f, 1.0f, 1.0f);
 
-	//Bulb
+	//Bulb 1
 	m = matrixView;
-	m = translate(matrixView, vec3(6.0f, 5.47f, 15.0f));
+	m = translate(matrixView, vec3(6.2f, 5.47f, 15.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
 	Program.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
-	//Change the colour to Black After Bulb is rendered
+
+	//Bulb 2
+	m = matrixView;
+	m = translate(matrixView, vec3(4.7f, 5.12f, 10.0f));
+	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
+	Program.SendUniform("matrixModelView", m);
+	glutSolidSphere(1, 32, 32);
+
+	//Bulb 3
+	m = matrixView;
+	m = translate(matrixView, vec3(4.7f, 4.27f, 5.0f));
+	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
+	Program.SendUniform("matrixModelView", m);
+	glutSolidSphere(1, 32, 32);
+
+	//Bulb 4
+	m = matrixView;
+	m = translate(matrixView, vec3(6.2f, 4.27f, 0.0f));
+	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
+	Program.SendUniform("matrixModelView", m);
+	glutSolidSphere(1, 32, 32);
+
+	//Bulb 5
+	m = matrixView;
+	m = translate(matrixView, vec3(4.7f, 4.57f, -5.0f));
+	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
+	Program.SendUniform("matrixModelView", m);
+	glutSolidSphere(1, 32, 32);
+
+	//Bulb 6
+	m = matrixView;
+	m = translate(matrixView, vec3(4.7f, 4.72f, 20.0f));
+	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
+	Program.SendUniform("matrixModelView", m);
+	glutSolidSphere(1, 32, 32);
+	//Change the colour to Black After the Bulbs have rendered
 	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
+
+
+
+
+
 	// the camera must be moved down by terrainY to avoid unwanted effects
 	matrixView = translate(matrixView, vec3(0, -terrainY, 0));
 
@@ -317,9 +426,8 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'e': cam.y = std::max(cam.y * 1.05f, 0.01f); break;
 	case 'q': cam.y = std::min(cam.y * 1.05f, -0.01f); break;
 	case 'n': dayLight = 1 - dayLight; break;
-	case 't': directionalLight = 1 - directionalLight; break;
-	case 'y': ambientLight = 1 - ambientLight; break;
-	case 'u': pointLight = 1 - pointLight; break;
+	case 't': atton = 1 - atton; break;
+
 	}
 	// speed limit
 	cam.x = std::max(-0.15f, std::min(0.15f, cam.x));
