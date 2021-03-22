@@ -96,6 +96,12 @@
   <ItemGroup>
     <None Include="shaders\basic.frag" />
     <None Include="shaders\basic.vert" />
+    <None Include="shaders\particle.frag" />
+    <None Include="shaders\particle.vert" />
+    <None Include="shaders\terrain.frag" />
+    <None Include="shaders\terrain.vert" />
+    <None Include="shaders\water.frag" />
+    <None Include="shaders\water.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GL\3dgl.h" />

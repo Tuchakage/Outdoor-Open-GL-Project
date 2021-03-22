@@ -1,8 +1,10 @@
+#define _USE_MATH_DEFINES
 #include <iostream>
 #include "GL/glew.h"
 #include "GL/3dgl.h"
 #include "GL/glut.h"
 #include "GL/freeglut_ext.h"
+#include <cmath>
 
 // Include GLM core features
 #include "glm/glm.hpp"
@@ -20,15 +22,23 @@ C3dglModel lamp;
 //Skybox
 C3dglSkyBox skybox, nightbox;
 // GLSL Program
-C3dglProgram Program;
+C3dglProgram Program, ProgramTerrain, ProgramParticle;
 //Textures
-GLuint idTexGrass;
-GLuint idTexNone;
-GLuint idTexRoad;
+GLuint idTexGrass, idTexRoad, idTexNone, idTexParticle;
+
+GLuint idBufferVelocity, idBufferStartTime, idBufferPosition;
+// Particle System Params
+const float PERIOD = 0.00075f;
+const float LIFETIME = 6;
+const int NPARTICLES = (int)(LIFETIME / PERIOD);
+
 //So we can switch between Day Light and Night time
 int dayLight = 0;
 //So we can turn on and off the attenuation
 int atton = 1;
+
+//Change between Sunny and rain
+int weather = 0;
 // camera position (for first person type camera navigation)
 mat4 matrixView;			// The View Matrix
 float angleTilt = 15.f;		// Tilt Angle
@@ -41,11 +51,17 @@ bool init()
 	glEnable(GL_NORMALIZE);		// normalization is needed by AssImp library models
 	glShadeModel(GL_SMOOTH);	// smooth shading mode is the default one; try GL_FLAT here!
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);	// this is the default one; try GL_LINE! 
+	// switch on: transparency/blending
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	// setup the point size
+	glEnable(0x8642);
+	glEnable(GL_POINT_SPRITE);
 
 	// Initialise Shaders
 	C3dglShader VertexShader;
 	C3dglShader FragmentShader;
-	C3dglBitmap grassbmp,roadbmp;
+	C3dglBitmap grassbmp,roadbmp, particletex;
 
 	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
 	if (!VertexShader.LoadFromFile("shaders/basic.vert")) return false;
@@ -61,12 +77,44 @@ bool init()
 	if (!Program.Link()) return false;
 	if (!Program.Use(true)) return false;
 
+	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
+	if (!VertexShader.LoadFromFile("shaders/particle.vert")) return false;
+	if (!VertexShader.Compile()) return false;
+
+	if (!FragmentShader.Create(GL_FRAGMENT_SHADER)) return false;
+	if (!FragmentShader.LoadFromFile("shaders/particle.frag")) return false;
+	if (!FragmentShader.Compile()) return false;
+
+	if (!ProgramParticle.Create()) return false;
+	if (!ProgramParticle.Attach(VertexShader)) return false;
+	if (!ProgramParticle.Attach(FragmentShader)) return false;
+	if (!ProgramParticle.Link()) return false;
+	if (!ProgramParticle.Use(true)) return false;
+
+	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
+	if (!VertexShader.LoadFromFile("shaders/terrain.vert")) return false;
+	if (!VertexShader.Compile()) return false;
+
+	if (!FragmentShader.Create(GL_FRAGMENT_SHADER)) return false;
+	if (!FragmentShader.LoadFromFile("shaders/terrain.frag")) return false;
+	if (!FragmentShader.Compile()) return false;
+
+	if (!ProgramTerrain.Create()) return false;
+	if (!ProgramTerrain.Attach(VertexShader)) return false;
+	if (!ProgramTerrain.Attach(FragmentShader)) return false;
+	if (!ProgramTerrain.Link()) return false;
+	if (!ProgramTerrain.Use(true)) return false;
+
+
 
 	// load your 3D models here!
 	if (!terrain.loadHeightmap("models\\heightmap.bmp", 10)) return false;
 	if (!road.loadHeightmap("models\\roadmap.bmp", 10)) return false;
 	if (!lamp.load("models\\street lamp - fancy.obj")) return false;
 
+	// glut additional setup
+	glutSetVertexAttribCoord3(Program.GetAttribLocation("aVertex"));
+	glutSetVertexAttribNormal(Program.GetAttribLocation("aNormal"));
 
 	// load Sky Box     
 	if (!skybox.load("models\\TropicalSunnyDay\\TropicalSunnyDayFront1024.jpg",
@@ -90,6 +138,9 @@ bool init()
 	roadbmp.Load("models/road.png", GL_RGBA);
 	if (!roadbmp.GetBits()) return false;
 
+	particletex.Load("models/particle1.bmp", GL_RGBA);
+	if (!particletex.GetBits()) return false;
+
 	//Preparing Texture Buffer For Grass
 	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &idTexGrass);
@@ -106,7 +157,13 @@ bool init()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, roadbmp.GetWidth(), roadbmp.GetHeight(), 0, GL_RGBA,
 		GL_UNSIGNED_BYTE, roadbmp.GetBits());
 
-
+	//Preparing Texture Buffer For Rain Particles
+	glActiveTexture(GL_TEXTURE0);
+	glGenTextures(1, &idTexParticle);
+	glBindTexture(GL_TEXTURE_2D, idTexParticle);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, particletex.GetWidth(), particletex.GetHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, particletex.GetBits());
 
 	// none (simple-white) texture
 	glGenTextures(1, &idTexNone);
@@ -115,10 +172,60 @@ bool init()
 	BYTE bytes[] = { 255, 255, 255 };
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_BGR, GL_UNSIGNED_BYTE, &bytes);
 
+
+	//ProgramTerrain.SendUniform("fogDensity", 0.3f);
+	ProgramTerrain.SendUniform("fogDensity2", 0.1f);
+	ProgramTerrain.SendUniform("fogColour", 0.47f, 0.4324f, 0.4324f);
 	// Send the texture info to the shaders
-	Program.SendUniform("texture0", 0);
+	ProgramTerrain.SendUniform("texture0", 0);
 
 
+	// Setup the particle system
+	//Initial Position
+	//ProgramParticle.SendUniform("initialPos", 0.0, 10.0, 0.0); 
+	//Gravity
+	//ProgramParticle.SendUniform("gravity", 0.0, -0.2, 0.0);
+	ProgramParticle.SendUniform("particleLifetime", LIFETIME);
+
+	// Prepare the particle buffers
+	std::vector<float> bufferVelocity;
+	std::vector<float> bufferStartTime;
+	std::vector<float> bufferPosition;
+
+	float time = 0;
+	for (int i = 0; i < NPARTICLES; i++)
+	{
+		float theta = (float)M_PI / 6.f * (float)rand() / (float)RAND_MAX;
+		float phi = (float)M_PI * 2.f * (float)rand() / (float)RAND_MAX;
+		float x = sin(theta) * cos(phi);
+		float y = cos(theta);
+		float z = sin(theta) * sin(phi);
+		float v = 2 + 0.5f * (float)rand() / (float)RAND_MAX;
+
+		bufferVelocity.push_back(x);
+		bufferVelocity.push_back(-y);
+		bufferVelocity.push_back(z);
+
+		bufferPosition.push_back(x * v);
+		bufferPosition.push_back(y);
+		bufferPosition.push_back(z * v);
+
+		bufferStartTime.push_back(time);
+		time += PERIOD;
+	}
+	glGenBuffers(1, &idBufferVelocity);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferVelocity);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * bufferVelocity.size(), &bufferVelocity[0],
+		GL_STATIC_DRAW);
+	glGenBuffers(1, &idBufferStartTime);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferStartTime);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * bufferStartTime.size(), &bufferStartTime[0],
+		GL_STATIC_DRAW);
+
+	glGenBuffers(1, &idBufferPosition);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferPosition);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * bufferPosition.size(), &bufferPosition[0],
+		GL_STATIC_DRAW);
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = rotate(mat4(1.f), radians(angleTilt), vec3(1.f, 0.f, 0.f));
 	matrixView *= lookAt(
@@ -135,11 +242,10 @@ bool init()
 	cout << "  Drag the mouse to look around" << endl;
 	cout << "  N to switch between day and night" << endl;
 	cout << "  T to switch between attenuation on and off" << endl;
+	cout << "  Y to switch between attenuation on and off" << endl;
 	cout << endl;
 
-	// glut additional setup
-	glutSetVertexAttribCoord3(Program.GetAttribLocation("aVertex"));
-	glutSetVertexAttribNormal(Program.GetAttribLocation("aNormal"));
+
 
 
 
@@ -155,6 +261,7 @@ void render()
 	// this global variable controls the animation
 	float theta = glutGet(GLUT_ELAPSED_TIME) * 0.01f;
 
+	ProgramParticle.SendUniform("time", glutGet(GLUT_ELAPSED_TIME) / 1000.f - 2);
 	// clear screen and buffers
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -171,116 +278,137 @@ void render()
 
 	// setup View Matrix
 	Program.SendUniform("matrixView", matrixView);
-
+	ProgramTerrain.SendUniform("matrixView", matrixView);
+	ProgramParticle.SendUniform("matrixView", matrixView);
 
 
 	if (dayLight == 1) 
 	{
-		glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // Light Blue Sky 
 		// setup ambient light and material:
-			//Turn on Both Ambient and Direction Light
-		Program.SendUniform("lightAmbient.on", 1);
-		Program.SendUniform("lightAmbient.color", 0.1, 0.1, 0.1);
+//Turn on Both Ambient and Direction Light
+		ProgramTerrain.SendUniform("lightAmbient.on", 1);
+		ProgramTerrain.SendUniform("lightAmbient.color", 0.1, 0.1, 0.1);
 
 		// setup directional light and the diffuse material:
-		Program.SendUniform("lightDir1.on", 1);
-		Program.SendUniform("lightDir1.direction", 0.75, 2.0, -1.0);
-		Program.SendUniform("lightDir1.diffuse", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightDir1.on", 1);
+		ProgramTerrain.SendUniform("lightDir1.direction", 0.75, 2.0, -1.0);
+		ProgramTerrain.SendUniform("lightDir1.diffuse", 1.0, 1.0, 1.0);
 
-		//Temporarily set the Ambient light and Ambient material to white and diffuse material to black (This gets rid of the box and makes the skybox bright)
-		Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
-		Program.SendUniform("materialAmbient", 1.0, 1.0, 1.0);
-		Program.SendUniform("materialDiffuse", 0.0, 0.0, 0.0);
-		// render the skybox (Day Time)
-		m = matrixView;
-		skybox.render(m);
-		Program.SendUniform("lightAmbient.color", 0.4, 0.4, 0.4);
+
 		//When it is day time turn off the Lamp
-		Program.SendUniform("lightPoint1.on", 0);
-		Program.SendUniform("lightPoint2.on", 0);
-		Program.SendUniform("lightPoint3.on", 0);
-		Program.SendUniform("lightPoint4.on", 0);
-		Program.SendUniform("lightPoint5.on", 0);
-		Program.SendUniform("lightPoint6.on", 0);
-		Program.SendUniform("lightAmbient2.on", 0);
+		ProgramTerrain.SendUniform("lightPoint1.on", 0);
+		ProgramTerrain.SendUniform("lightPoint2.on", 0);
+		ProgramTerrain.SendUniform("lightPoint3.on", 0);
+		ProgramTerrain.SendUniform("lightPoint4.on", 0);
+		ProgramTerrain.SendUniform("lightPoint5.on", 0);
+		ProgramTerrain.SendUniform("lightPoint6.on", 0);
+		ProgramTerrain.SendUniform("lightAmbient2.on", 0);
+		//Weather being 1 means it is raining, if it is 0 then it is sunny
+		if (weather == 1) //Make it rain
+		{
+			glClearColor(0.47f, 0.4324f, 0.4324f, 1.0f); // Foggy Sky
+			ProgramTerrain.SendUniform("fogon", 1);
+			ProgramParticle.SendUniform("weather", 1);
+		}
+		else // Make it Sunny
+		{
+			glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // Light Blue Sky 
+			ProgramTerrain.SendUniform("fogon", 0);
+			ProgramParticle.SendUniform("weather", 0);
 
+			//Temporarily set the Ambient light and Ambient material to white and diffuse material to black (This gets rid of the box and makes the skybox bright)
+			ProgramTerrain.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
+			ProgramTerrain.SendUniform("materialAmbient", 1.0, 1.0, 1.0);
+			ProgramTerrain.SendUniform("materialDiffuse", 0.0, 0.0, 0.0);
+			// render the skybox (Day Time)
+			m = matrixView;
+			skybox.render(m);
+			ProgramTerrain.SendUniform("lightAmbient.color", 0.4, 0.4, 0.4);
 
+		}
+		
+
+	
 	}
 	else 
 	{
 		glClearColor(0.0329f, 0.01f, 0.0839f, 1.0f); // Dark Blue Sky 
 
+		//Make sure the rain and fog is off 
+		ProgramTerrain.SendUniform("fogon", 0);
+		ProgramParticle.SendUniform("weather", 0);
+
 		//Turn on Both Ambient and Direction Light
-		Program.SendUniform("lightAmbient.on", 0);
-		Program.SendUniform("lightDir1.on", 0);
+		ProgramTerrain.SendUniform("lightAmbient.on", 0);
+		ProgramTerrain.SendUniform("lightDir1.on", 0);
 		//Switch between Attenuation being on and off
-		Program.SendUniform("atton", atton);
+		ProgramTerrain.SendUniform("atton", atton);
 
 		//Point Light 1 (Diffuse)
-		Program.SendUniform("lightPoint1.on", 1);
-		Program.SendUniform("lightPoint1.position", 6.2f, 5.47f, 15.0f);
-		Program.SendUniform("lightPoint1.diffuse", 0.4, 0.4, 0.4);
+		ProgramTerrain.SendUniform("lightPoint1.on", 1);
+		ProgramTerrain.SendUniform("lightPoint1.position", 6.2f, 5.47f, 15.0f);
+		ProgramTerrain.SendUniform("lightPoint1.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 1 (Specular Extension)
-		Program.SendUniform("lightPoint1.specular", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightPoint1.specular", 1.0, 1.0, 1.0);
 
 		//Point Light 2 (Diffuse)
-		Program.SendUniform("lightPoint2.on", 1);
-		Program.SendUniform("lightPoint2.position", 4.7f, 5.12f, 10.0f);
-		Program.SendUniform("lightPoint2.diffuse", 0.4, 0.4, 0.4);
+		ProgramTerrain.SendUniform("lightPoint2.on", 1);
+		ProgramTerrain.SendUniform("lightPoint2.position", 4.7f, 5.12f, 10.0f);
+		ProgramTerrain.SendUniform("lightPoint2.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 2 (Specular Extension)
-		Program.SendUniform("lightPoint2.specular", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightPoint2.specular", 1.0, 1.0, 1.0);
 
 		//Point Light 3 (Diffuse)
-		Program.SendUniform("lightPoint3.on", 1);
-		Program.SendUniform("lightPoint3.position", 4.7f, 4.27f, 5.0f);
-		Program.SendUniform("lightPoint3.diffuse", 0.4, 0.4, 0.4);
+		ProgramTerrain.SendUniform("lightPoint3.on", 1);
+		ProgramTerrain.SendUniform("lightPoint3.position", 4.7f, 4.27f, 5.0f);
+		ProgramTerrain.SendUniform("lightPoint3.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 3 (Specular Extension)
-		Program.SendUniform("lightPoint3.specular", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightPoint3.specular", 1.0, 1.0, 1.0);
 
 		//Point Light 4 (Diffuse)
-		Program.SendUniform("lightPoint4.on", 1);
-		Program.SendUniform("lightPoint4.position", 6.2f, 4.27f, 0.0f);
-		Program.SendUniform("lightPoint4.diffuse", 0.4, 0.4, 0.4);
+		ProgramTerrain.SendUniform("lightPoint4.on", 1);
+		ProgramTerrain.SendUniform("lightPoint4.position", 6.2f, 4.27f, 0.0f);
+		ProgramTerrain.SendUniform("lightPoint4.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 4 (Specular Extension)
-		Program.SendUniform("lightPoint4.specular", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightPoint4.specular", 1.0, 1.0, 1.0);
 
 		//Point Light 5 (Diffuse)
-		Program.SendUniform("lightPoint5.on", 1);
-		Program.SendUniform("lightPoint5.position", 4.7f, 4.57f, -5.0f);
-		Program.SendUniform("lightPoint5.diffuse", 0.4, 0.4, 0.4);
+		ProgramTerrain.SendUniform("lightPoint5.on", 1);
+		ProgramTerrain.SendUniform("lightPoint5.position", 4.7f, 4.57f, -5.0f);
+		ProgramTerrain.SendUniform("lightPoint5.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 5 (Specular Extension)
-		Program.SendUniform("lightPoint5.specular", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightPoint5.specular", 1.0, 1.0, 1.0);
 
 		//Point Light 6 (Diffuse)
-		Program.SendUniform("lightPoint6.on", 1);
-		Program.SendUniform("lightPoint6.position", 4.7f, 4.72f, 20.0f);
-		Program.SendUniform("lightPoint6.diffuse", 0.4, 0.4, 0.4);
+		ProgramTerrain.SendUniform("lightPoint6.on", 1);
+		ProgramTerrain.SendUniform("lightPoint6.position", 4.7f, 4.72f, 20.0f);
+		ProgramTerrain.SendUniform("lightPoint6.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 6 (Specular Extension)
-		Program.SendUniform("lightPoint6.specular", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightPoint6.specular", 1.0, 1.0, 1.0);
 
-		Program.SendUniform("materialSpecular", 0.0, 0.0, 0.0);
-		Program.SendUniform("shininess", 3.0);
+		ProgramTerrain.SendUniform("materialSpecular", 0.0, 0.0, 0.0);
+		ProgramTerrain.SendUniform("shininess", 3.0);
 
 		//2nd Ambient Light To brighten up the bulb
-		Program.SendUniform("lightAmbient2.on", 1);
-		Program.SendUniform("lightAmbient2.color", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("lightAmbient2.on", 1);
+		ProgramTerrain.SendUniform("lightAmbient2.color", 1.0, 1.0, 1.0);
 		//Light Attentuation
-		Program.SendUniform("attenuation", 0.2);
+		ProgramTerrain.SendUniform("attenuation", 0.2);
 
 		//This line of code brightens the scene up a tiny bit, enough so that we can see the Night Sky
-		Program.SendUniform("materialAmbient", 0.1, 0.1, 0.1);
+		ProgramTerrain.SendUniform("materialAmbient", 0.1, 0.1, 0.1);
 		//This stops the shine that happens on the sky box when you get near the lamps
-		Program.SendUniform("materialDiffuse", 0.0, 0.0, 0.0);
+		ProgramTerrain.SendUniform("materialDiffuse", 0.0, 0.0, 0.0);
 		// render the skybox (Night Time)
 		m = matrixView;
 		nightbox.render(m);
 		//After the Skybox has finished rendering then set Material Diffuse to white so that point light will work on the scene properly
-		Program.SendUniform("materialDiffuse", 1.0, 1.0, 1.0);
+		ProgramTerrain.SendUniform("materialDiffuse", 1.0, 1.0, 1.0);
 	}
 
 
 
-
+	ProgramTerrain.Use();
 	//Bind Grass Texture To Terrain
 	//glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, idTexGrass);
@@ -295,7 +423,7 @@ void render()
 	glBindTexture(GL_TEXTURE_2D, idTexRoad);
 
 	// setup materials - grey (road)
-	Program.SendUniform("materialDiffuse", 0.3f, 0.3f, 0.16f);
+	ProgramTerrain.SendUniform("materialDiffuse", 0.3f, 0.3f, 0.16f);
 	//Program.SendUniform("materialAmbient", 0.3f, 0.3f, 0.16f);
 	// render the road
 	m = translate(matrixView, vec3(0, 0, 0));
@@ -305,10 +433,10 @@ void render()
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
 	
 	//Black Material For Lamp
-	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
-	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
+	ProgramTerrain.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
+	ProgramTerrain.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
 	//Make The Material Shiny
-	Program.SendUniform("materialSpecular", 1.0, 1.0, 1.0);
+	ProgramTerrain.SendUniform("materialSpecular", 1.0, 1.0, 1.0);
 
 	//Black Lamp 1
 	m = translate(matrixView, vec3(6.2f, 4.25f, 15.0f));
@@ -341,54 +469,83 @@ void render()
 	lamp.render(m);
 
 	//White Material For Light Bulbs
-	Program.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);
-	Program.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
+	ProgramTerrain.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);
+	ProgramTerrain.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
 
 	//Bulb 1
 	m = matrixView;
 	m = translate(matrixView, vec3(6.2f, 5.47f, 15.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
-	Program.SendUniform("matrixModelView", m);
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 2
 	m = matrixView;
 	m = translate(matrixView, vec3(4.7f, 5.12f, 10.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
-	Program.SendUniform("matrixModelView", m);
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 3
 	m = matrixView;
 	m = translate(matrixView, vec3(4.7f, 4.27f, 5.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
-	Program.SendUniform("matrixModelView", m);
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 4
 	m = matrixView;
 	m = translate(matrixView, vec3(6.2f, 4.27f, 0.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
-	Program.SendUniform("matrixModelView", m);
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 5
 	m = matrixView;
 	m = translate(matrixView, vec3(4.7f, 4.57f, -5.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
-	Program.SendUniform("matrixModelView", m);
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 6
 	m = matrixView;
 	m = translate(matrixView, vec3(4.7f, 4.72f, 20.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
-	Program.SendUniform("matrixModelView", m);
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 	//Change the colour to Black After the Bulbs have rendered
-	Program.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
+	ProgramTerrain.SendUniform("materialAmbient", 0.0f, 0.0f, 0.0f);
 
+	glDepthMask(GL_FALSE);				// disable depth buffer updates
+	glActiveTexture(GL_TEXTURE0);			// choose the active texture
+	glBindTexture(GL_TEXTURE_2D, idTexParticle);	// bind the texture
 
+	ProgramParticle.SendUniform("texture0", 0);
+	// RENDER THE PARTICLE SYSTEM
+	ProgramParticle.Use();
+
+	m = matrixView;
+	m = scale(m, vec3(50.5f, 50.5f, 50.5f));
+	//m = translate(m, vec3(0.1, 0.0, 0.5));
+	//m = translate(m, cam);
+	ProgramParticle.SendUniform("matrixModelView", m);
+
+	// render the buffer
+	glEnableVertexAttribArray(0);	// velocity
+	glEnableVertexAttribArray(1);	// start time
+	glEnableVertexAttribArray(2);	// position
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferVelocity);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferStartTime);
+	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferPosition);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glDrawArrays(GL_POINTS, 0, NPARTICLES);
+	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
+	glDisableVertexAttribArray(2);
+
+	glDepthMask(GL_TRUE);		// don't forget to switch the depth test updates back on
 
 
 
@@ -412,6 +569,8 @@ void reshape(int w, int h)
 
 	// Setup the Projection Matrix
 	Program.SendUniform("matrixProjection", matrixProjection);
+	ProgramTerrain.SendUniform("matrixProjection", matrixProjection);
+	ProgramParticle.SendUniform("matrixProjection", matrixProjection);
 
 }
 
@@ -428,6 +587,7 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'q': cam.y = std::min(cam.y * 1.05f, -0.01f); break;
 	case 'n': dayLight = 1 - dayLight; break;
 	case 't': atton = 1 - atton; break;
+	case 'y': weather = 1 - weather; break;
 
 	}
 	// speed limit
