@@ -242,7 +242,7 @@ bool init()
 	cout << "  Drag the mouse to look around" << endl;
 	cout << "  N to switch between day and night" << endl;
 	cout << "  T to switch between attenuation on and off" << endl;
-	cout << "  Y to switch between attenuation on and off" << endl;
+	cout << "  Y to switch between sunny day and rainy day (Can only be done in day time)" << endl;
 	cout << endl;
 
 
