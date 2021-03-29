@@ -96,6 +96,8 @@
   <ItemGroup>
     <None Include="shaders\basic.frag" />
     <None Include="shaders\basic.vert" />
+    <None Include="shaders\effect.frag" />
+    <None Include="shaders\effect.vert" />
     <None Include="shaders\particle.frag" />
     <None Include="shaders\particle.vert" />
     <None Include="shaders\terrain.frag" />

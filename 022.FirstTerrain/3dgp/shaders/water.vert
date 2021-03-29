@@ -8,9 +8,11 @@ uniform mat4 matrixModelView;
 // Uniforms: Material Colours
 uniform vec3 materialAmbient;
 uniform vec3 materialDiffuse;
-
+uniform vec4 planeClip;
 //Time Variable For Animation
 uniform float t;			// real time
+
+uniform float fogDensity;
 
 in vec3 aVertex;
 in vec3 aNormal;
@@ -21,6 +23,8 @@ out vec4 position;
 out vec3 normal;
 out vec2 texCoord0;
 out float reflFactor;		// reflection coefficient
+out vec3 texCoordCubeMap;	
+out float fogFactor;
 
 float wave(float A, float x, float y, float t)
 {
@@ -57,10 +61,17 @@ void main(void)
 	// calculate texture coordinate
 	//texCoord0 = aTexCoord;
 
+	texCoordCubeMap = -inverse(mat3(matrixView)) * reflect(position.xyz, normal.xyz);
+
 	// calculate reflection coefficient
 	// using Schlick's approximation of Fresnel formula
 	float cosTheta = dot(normal, normalize(-position.xyz));
 	float R0 = 0.02;
 	reflFactor = R0 + (1 - R0) * pow(1.0 - cosTheta, 5);
+
+	gl_ClipDistance[0] = dot(inverse(matrixView) * position, planeClip);
+
+		//Calculating Fog Factor For Normal Fog
+	fogFactor = exp2(-fogDensity * length(position)) ;
 
 }

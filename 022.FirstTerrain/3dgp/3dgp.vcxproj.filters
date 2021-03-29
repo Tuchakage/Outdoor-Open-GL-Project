@@ -52,6 +52,8 @@
     <None Include="shaders\terrain.frag" />
     <None Include="shaders\water.frag" />
     <None Include="shaders\water.vert" />
+    <None Include="shaders\effect.frag" />
+    <None Include="shaders\effect.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GL\3dgl.h">
