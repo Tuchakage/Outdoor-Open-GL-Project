@@ -41,9 +41,12 @@ const int NPARTICLES = (int)(LIFETIME / PERIOD);
 int dayLight = 0;
 //So we can turn on and off the attenuation
 int atton = 1;
-
 //Change between Sunny and rain
 int weather = 0;
+//Turn On Effects
+int effecton = 0;
+//Pick Between Different Effects
+int effect = 1;
 // camera position (for first person type camera navigation)
 mat4 matrixView;			// The View Matrix
 float angleTilt = 15.f;		// Tilt Angle
@@ -385,6 +388,12 @@ bool init()
 	cout << "  T to switch between attenuation on and off" << endl;
 	cout << "  Y to switch between sunny day and rainy day (Can only be done in day time)" << endl;
 	cout << endl;
+	cout << "  U to switch between Post Processing Effects and No Post Processing Effects" << endl;
+	cout << "  Apply different effects onto the scene by pressing numbers on the keyboard " << endl;
+	cout << "  List of Effects: " << endl;
+	cout << "  Press 1 for INSTAGRAM-STYLE SEPIA FILTER: " << endl;
+	cout << "  Press 2 for BLUR FILTER: " << endl;
+	cout << endl;
 
 
 
@@ -415,7 +424,7 @@ void reshape(int w, int h)
 void render()
 {
 	// Pass 1: off-screen rendering
-	//glBindFramebufferEXT(GL_FRAMEBUFFER, idFBO);
+	glBindFramebufferEXT(GL_FRAMEBUFFER, idFBO);
 
 	// this global variable controls the animation
 	float theta = glutGet(GLUT_ELAPSED_TIME) * 0.01f;
@@ -620,8 +629,10 @@ void render()
 		Program.SendUniform("materialDiffuse", 1.0, 1.0, 1.0);
 	}
 
-
-
+	//Allows you to start applying different Effects
+	ProgramEffect.SendUniform("effecton", effecton);
+	//Allows the Effect to Change depending on the number the user pressed on the keyboard
+	ProgramEffect.SendUniform("effect", effect);
 	ProgramTerrain.Use();
 	//Bind Grass Texture To Terrain
 	// setup the textures
@@ -794,32 +805,32 @@ void render()
 	// the camera must be moved down by terrainY to avoid unwanted effects
 	matrixView = translate(matrixView, vec3(0, -terrainY, 0));
 
-	//// Pass 2: on-screen rendering
-	//glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
+	// Pass 2: on-screen rendering
+	glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
 
-	//// setup ortographic projection
-	//ProgramEffect.SendUniform("matrixProjection", ortho(0, 1, 0, 1, -1, 1));
+	// setup ortographic projection
+	ProgramEffect.SendUniform("matrixProjection", ortho(0, 1, 0, 1, -1, 1));
 
-	//// clear screen and buffers
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//glBindTexture(GL_TEXTURE_2D, idTexScreen);
+	// clear screen and buffers
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindTexture(GL_TEXTURE_2D, idTexScreen);
 
-	//// setup identity matrix as the model-view
-	//ProgramEffect.SendUniform("matrixModelView", mat4(1));
+	// setup identity matrix as the model-view
+	ProgramEffect.SendUniform("matrixModelView", mat4(1));
 
-	////Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
+	//Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
 	//ProgramTerrain.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
-	//GLuint attribVertex = Program.GetAttribLocation("aVertex");
-	//GLuint attribTextCoord = Program.GetAttribLocation("aTexCoord");
-	//glEnableVertexAttribArray(attribVertex);
-	//glEnableVertexAttribArray(attribTextCoord);
-	//glBindBuffer(GL_ARRAY_BUFFER, bufQuad);
-	//glVertexAttribPointer(attribVertex, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
-	//glVertexAttribPointer(attribTextCoord, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-	//	(void*)(3 * sizeof(float)));
-	//glDrawArrays(GL_QUADS, 0, 4);
-	//glDisableVertexAttribArray(attribVertex);
-	//glDisableVertexAttribArray(attribTextCoord);
+	GLuint attribVertex = ProgramEffect.GetAttribLocation("aVertex");
+	GLuint attribTextCoord = ProgramEffect.GetAttribLocation("aTexCoord");
+	glEnableVertexAttribArray(attribVertex);
+	glEnableVertexAttribArray(attribTextCoord);
+	glBindBuffer(GL_ARRAY_BUFFER, bufQuad);
+	glVertexAttribPointer(attribVertex, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
+	glVertexAttribPointer(attribTextCoord, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+		(void*)(3 * sizeof(float)));
+	glDrawArrays(GL_QUADS, 0, 4);
+	glDisableVertexAttribArray(attribVertex);
+	glDisableVertexAttribArray(attribTextCoord);
 
 	// essential for double-buffering technique
 	glutSwapBuffers();
@@ -845,6 +856,10 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'n': dayLight = 1 - dayLight; break;
 	case 't': atton = 1 - atton; break;
 	case 'y': weather = 1 - weather; break;
+	case 'u': effecton = 1 - effecton; break;
+	case '1': effect = 1; break;
+	case '2': effect = 2; break;
+
 
 	}
 	// speed limit
