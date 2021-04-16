@@ -31,7 +31,11 @@ void main(void)
     }
     else
     {
-                outColor = texture(texture0, texCoord0);
+
+        //Switch Between Different Effects
+        if (effect == 1) // INSTAGRAM-STYLE SEPIA FILTER
+        {
+            outColor = texture(texture0, texCoord0);
             // Vignette
 
             // Find centre position
@@ -53,10 +57,6 @@ void main(void)
 
             // mix-in the sepia effect
             outColor.rgb = mix(outColor.rgb, vec3(gray) * sepia, 0.75);
-    //Switch Between Different Effects
-        if (effect == 1) // INSTAGRAM-STYLE SEPIA FILTER
-        {
-
         }
         else if (effect == 2) //Blur Filter
         {
@@ -74,6 +74,10 @@ void main(void)
 
 	        outColor = vec4(v / n, 1);
 
+        }
+        else if (effect == 3 )
+        {
+                outColor = vec4(1, 1, 1, 1) - texture(texture0, texCoord0);
         }
     }
 

@@ -393,6 +393,7 @@ bool init()
 	cout << "  List of Effects: " << endl;
 	cout << "  Press 1 for INSTAGRAM-STYLE SEPIA FILTER: " << endl;
 	cout << "  Press 2 for BLUR FILTER: " << endl;
+	cout << "  Press 3 for NEGATIVE FILTER: " << endl;
 	cout << endl;
 
 
@@ -818,8 +819,6 @@ void render()
 	// setup identity matrix as the model-view
 	ProgramEffect.SendUniform("matrixModelView", mat4(1));
 
-	//Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
-	//ProgramTerrain.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
 	GLuint attribVertex = ProgramEffect.GetAttribLocation("aVertex");
 	GLuint attribTextCoord = ProgramEffect.GetAttribLocation("aTexCoord");
 	glEnableVertexAttribArray(attribVertex);
@@ -859,6 +858,7 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'u': effecton = 1 - effecton; break;
 	case '1': effect = 1; break;
 	case '2': effect = 2; break;
+	case '3': effect = 3; break;
 
 
 	}
