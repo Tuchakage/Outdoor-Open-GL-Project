@@ -24,7 +24,7 @@ C3dglSkyBox skybox, nightbox;
 // GLSL Program
 C3dglProgram Program, ProgramTerrain, ProgramParticle, ProgramEffect, ProgramWater;
 //Textures
-GLuint idTexGrass, idTexRoad, idTexNone, idTexParticle, idTexScreen, idTexWater, idTexSand, idTexGrassNormal, idTexSandNormal;
+GLuint idTexGrass, idTexRoad, idTexNone, idTexParticle, idTexScreen, idTexWater, idTexSand, idTexGrassNormal, idTexSandNormal, idTexNoise, idTexBinoc;
 
 GLuint idBufferVelocity, idBufferStartTime, idBufferPosition, idFBO, bufQuad;
 
@@ -69,7 +69,7 @@ bool init()
 	// Initialise Shaders
 	C3dglShader VertexShader;
 	C3dglShader FragmentShader;
-	C3dglBitmap grassbmp,roadbmp, particletex, watertex, sandtex, grassnormaltex, sandnormaltex;
+	C3dglBitmap grassbmp,roadbmp, particletex, watertex, sandtex, grassnormaltex, sandnormaltex, noisetex, binoctex;
 
 	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
 	if (!VertexShader.LoadFromFile("shaders/basic.vert")) return false;
@@ -188,6 +188,12 @@ bool init()
 	grassnormaltex.Load("models/grassnormal.png", GL_RGBA);
 	if (!grassnormaltex.GetBits()) return false;
 
+	noisetex.Load("models/noise.jpg", GL_RGBA);
+	if (!grassnormaltex.GetBits()) return false;
+
+	binoctex.Load("models/binocular.png", GL_RGBA);
+	if (!grassnormaltex.GetBits()) return false;
+
 	//sandnormaltex.Load("models/sandnormal.png", GL_RGBA);
 	//if (!sandnormaltex.GetBits()) return false;
 
@@ -247,6 +253,23 @@ bool init()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, watertex.GetWidth(), watertex.GetHeight(), 0, GL_RGBA,
 		GL_UNSIGNED_BYTE, watertex.GetBits());
 
+	//Preparing Texture Buffer For Noise
+	glActiveTexture(GL_TEXTURE1);
+	glGenTextures(1, &idTexNoise);
+	glBindTexture(GL_TEXTURE_2D, idTexNoise);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, noisetex.GetWidth(), noisetex.GetHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, noisetex.GetBits());
+
+
+	//Preparing Texture Buffer For Noise
+	glActiveTexture(GL_TEXTURE2);
+	glGenTextures(1, &idTexBinoc);
+	glBindTexture(GL_TEXTURE_2D, idTexBinoc);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, binoctex.GetWidth(), binoctex.GetHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, binoctex.GetBits());
+
 	// none (simple-white) texture
 	glGenTextures(1, &idTexNone);
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
@@ -255,6 +278,7 @@ bool init()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_BGR, GL_UNSIGNED_BYTE, &bytes);
 	// Create screen space texture
 
+	//Preparing Texture Buffer For Post Processing
 	glGenTextures(1, &idTexScreen);
 	glBindTexture(GL_TEXTURE_2D, idTexScreen);
 
@@ -314,8 +338,8 @@ bool init()
 	ProgramWater.SendUniform("fogDensity", 0.1f);
 	//Fog Colour For Water
 	ProgramWater.SendUniform("fogColour", 0.47f, 0.4324f, 0.4324f);
-	// Send the texture info to the shaders
 
+	// Send the texture info to the shaders
 	ProgramEffect.SendUniform("texture0", 0);
 
 	// setup the water colours and level
@@ -324,11 +348,12 @@ bool init()
 	ProgramTerrain.SendUniform("waterColor", 0.2f, 0.22f, 0.02f);
 	ProgramTerrain.SendUniform("waterLevel", waterLevel);
 
+	//Setup Night Vision Goggle Effects
+	ProgramEffect.SendUniform("bufferAmplication", 1.0);
+	ProgramEffect.SendUniform("noiseAmplification", 0.4);
+	ProgramEffect.SendUniform("intensityAdjust", 1.0);
+
 	// Setup the particle system
-	//Initial Position
-	//ProgramParticle.SendUniform("initialPos", 0.0, 10.0, 0.0); 
-	//Gravity
-	//ProgramParticle.SendUniform("gravity", 0.0, -0.2, 0.0);
 	ProgramParticle.SendUniform("particleLifetime", LIFETIME);
 
 	// Prepare the particle buffers
@@ -391,9 +416,11 @@ bool init()
 	cout << "  U to switch between Post Processing Effects and No Post Processing Effects" << endl;
 	cout << "  Apply different effects onto the scene by pressing numbers on the keyboard " << endl;
 	cout << "  List of Effects: " << endl;
-	cout << "  Press 1 for INSTAGRAM-STYLE SEPIA FILTER: " << endl;
-	cout << "  Press 2 for BLUR FILTER: " << endl;
-	cout << "  Press 3 for NEGATIVE FILTER: " << endl;
+	cout << "  Press 1 for INSTAGRAM-STYLE SEPIA FILTER " << endl;
+	cout << "  Press 2 for BLUR FILTER " << endl;
+	cout << "  Press 3 for KERNEL EFFECT " << endl;
+	cout << "  Press 4 for EDGE DETECTION FILTER " << endl;
+	cout << "  Press 5 for NIGHT VISION GOGGLES" << endl;
 	cout << endl;
 
 
@@ -431,6 +458,7 @@ void render()
 	float theta = glutGet(GLUT_ELAPSED_TIME) * 0.01f;
 	ProgramWater.SendUniform("t", glutGet(GLUT_ELAPSED_TIME) / 1000.f);
 	ProgramParticle.SendUniform("time", glutGet(GLUT_ELAPSED_TIME) / 1000.f - 2);
+	ProgramEffect.SendUniform("elapsedTime", theta);
 	// clear screen and buffers
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -447,7 +475,6 @@ void render()
 	// setup View Matrix
 	Program.SendUniform("matrixView", matrixView);
 	ProgramTerrain.SendUniform("matrixView", matrixView);
-	ProgramParticle.SendUniform("matrixView", matrixView);
 	ProgramWater.SendUniform("matrixView", matrixView);
 
 	if (dayLight == 1) 
@@ -512,11 +539,9 @@ void render()
 			skybox.render(m);
 			ProgramTerrain.SendUniform("lightAmbient.color", 0.4, 0.4, 0.4);
 			Program.SendUniform("lightAmbient.color", 0.4, 0.4, 0.4);
-
+			Program.SendUniform("materialDiffuse", 1.0, 1.0, 1.0);
+			ProgramTerrain.SendUniform("materialDiffuse", 1.0, 1.0, 1.0);
 		}
-		
-
-	
 	}
 	else 
 	{
@@ -562,8 +587,8 @@ void render()
 		//Point Light 3 (Diffuse)
 		ProgramTerrain.SendUniform("lightPoint3.on", 1);
 		Program.SendUniform("lightPoint3.on", 1);
-		ProgramTerrain.SendUniform("lightPoint3.position", 4.7f, 4.27f, 5.0f);
-		Program.SendUniform("lightPoint3.position", 4.7f, 4.27f, 5.0f);
+		ProgramTerrain.SendUniform("lightPoint3.position", -18.2f, 8.21f, 2.0f);
+		Program.SendUniform("lightPoint3.position", -18.2f, 8.21f, 2.0f);
 		ProgramTerrain.SendUniform("lightPoint3.diffuse", 0.4, 0.4, 0.4);
 		Program.SendUniform("lightPoint3.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 3 (Specular Extension)
@@ -573,8 +598,8 @@ void render()
 		//Point Light 4 (Diffuse)
 		ProgramTerrain.SendUniform("lightPoint4.on", 1);
 		Program.SendUniform("lightPoint4.on", 1);
-		ProgramTerrain.SendUniform("lightPoint4.position", 6.2f, 4.27f, 0.0f);
-		Program.SendUniform("lightPoint4.position", 6.2f, 4.27f, 0.0f);
+		ProgramTerrain.SendUniform("lightPoint4.position", -14.5f, 9.27f, -2.0f);
+		Program.SendUniform("lightPoint4.position", -14.5f, 9.27f, -2.0f);
 		ProgramTerrain.SendUniform("lightPoint4.diffuse", 0.4, 0.4, 0.4);
 		Program.SendUniform("lightPoint4.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 4 (Specular Extension)
@@ -638,6 +663,7 @@ void render()
 	//Bind Grass Texture To Terrain
 	// setup the textures
 
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, idTexGrass);
 	ProgramTerrain.SendUniform("textureShore", 0);
@@ -645,6 +671,7 @@ void render()
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexGrassNormal);
 	ProgramTerrain.SendUniform("textureNormal", 1);
+
 	//Bind Sand Texture To Terrain
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, idTexSand);
@@ -655,18 +682,14 @@ void render()
 	//glBindTexture(GL_TEXTURE_2D, idTexSandNormal);
 	//ProgramTerrain.SendUniform("textureNormal", 3);
 
-	//Give The Terrain Diffuse Material so that we can see the normal map
-	ProgramTerrain.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);
 	// render the terrain
 	m = translate(matrixView, vec3(0, 0, 0));
 	terrain.render(m);
 
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, idTexRoad);
-	ProgramEffect.SendUniform("texture0", 0);
-
-	//Make The Road Diffuse Material Black So That It Is Not Affected By Normal Map
-	ProgramTerrain.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
+	Program.SendUniform("texture0", 0);
 
 	// render the road
 	m = translate(matrixView, vec3(0, 0, 0));
@@ -693,12 +716,12 @@ void render()
 	lamp.render(m);
 
 	//Black Lamp 3
-	m = translate(matrixView, vec3(4.7f, 3.05f, 5.0f));
+	m = translate(matrixView, vec3(-18.2f, 6.99f, 2.0f));
 	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
 	lamp.render(m);
 
 	//Black Lamp 4
-	m = translate(matrixView, vec3(6.2f, 3.05f, 0.0f));
+	m = translate(matrixView, vec3(-14.5f, 8.05f, -2.0f));
 	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
 	lamp.render(m);
 
@@ -732,14 +755,14 @@ void render()
 
 	//Bulb 3
 	m = matrixView;
-	m = translate(matrixView, vec3(4.7f, 4.27f, 5.0f));
+	m = translate(matrixView, vec3(-18.2f, 8.21f, 2.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
 	Program.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 4
 	m = matrixView;
-	m = translate(matrixView, vec3(6.2f, 4.27f, 0.0f));
+	m = translate(matrixView, vec3(-14.5f, 9.27f, -2.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
 	Program.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
@@ -816,6 +839,14 @@ void render()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindTexture(GL_TEXTURE_2D, idTexScreen);
 
+	//Noise Texture For Night Vision Filter
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, idTexNoise);
+	ProgramEffect.SendUniform("noiseTexture", 1);
+
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, idTexBinoc);
+	ProgramEffect.SendUniform("binocTexture", 2);
 	// setup identity matrix as the model-view
 	ProgramEffect.SendUniform("matrixModelView", mat4(1));
 
@@ -846,7 +877,7 @@ void onKeyDown(unsigned char key, int x, int y)
 {
 	switch (tolower(key))
 	{
-	case 'w': cam.z = std::max(cam.z * 1.05f, 0.01f); break;
+	case 'w': cam.z = std::max(cam.z * 1.05f, 10.01f); break;
 	case 's': cam.z = std::min(cam.z * 1.05f, -0.01f); break;
 	case 'a': cam.x = std::max(cam.x * 1.05f, 0.01f); break;
 	case 'd': cam.x = std::min(cam.x * 1.05f, -0.01f); break;
@@ -859,6 +890,8 @@ void onKeyDown(unsigned char key, int x, int y)
 	case '1': effect = 1; break;
 	case '2': effect = 2; break;
 	case '3': effect = 3; break;
+	case '4': effect = 4; break;
+	case '5': effect = 5; break;
 
 
 	}

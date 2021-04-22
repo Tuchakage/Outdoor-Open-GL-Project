@@ -119,8 +119,7 @@ void main(void)
 	normalNew = normalize(matrixTangent * normalNew);
 
 	outColor = color;
-	// shoreline multitexturing
-	float isAboveWater = clamp(-waterDepth, 0, 1); 
+
 
 	if (lightPoint1.on == 1)
 	{
@@ -166,10 +165,12 @@ void main(void)
 	{
 		outColor += DirectionalLight(lightDir1);
 	} 
+
 	//outColor *= texture(texture0, texCoord0);
+	// shoreline multitexturing
+	float isAboveWater = clamp(-waterDepth, 0, 1); 
 	outColor *= mix(texture(textureBed, texCoord0), texture(textureShore, texCoord0), isAboveWater);
 	
-
 	//For Water Fog
 	outColor = mix(vec4(waterColor, 1), outColor, fogFactor);
 
