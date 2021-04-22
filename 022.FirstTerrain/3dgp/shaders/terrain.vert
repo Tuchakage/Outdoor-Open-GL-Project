@@ -35,9 +35,6 @@ void main(void)
 	// calculate position
 	position = matrixModelView * vec4(aVertex, 1.0);
 	gl_Position = matrixProjection * position;
-	
-
-
 
 	normal = normalize(mat3(matrixModelView) * aNormal);
 

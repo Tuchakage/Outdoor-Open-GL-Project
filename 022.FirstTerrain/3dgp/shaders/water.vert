@@ -12,7 +12,6 @@ uniform vec4 planeClip;
 //Time Variable For Animation
 uniform float t;			// real time
 
-uniform float fogDensity;
 
 in vec3 aVertex;
 in vec3 aNormal;
@@ -24,7 +23,7 @@ out vec3 normal;
 out vec2 texCoord0;
 out float reflFactor;		// reflection coefficient
 out vec3 texCoordCubeMap;	
-out float fogFactor;
+
 
 float wave(float A, float x, float y, float t)
 {
@@ -71,7 +70,5 @@ void main(void)
 
 	gl_ClipDistance[0] = dot(inverse(matrixView) * position, planeClip);
 
-		//Calculating Fog Factor For Normal Fog
-	fogFactor = exp2(-fogDensity * length(position)) ;
 
 }

@@ -176,7 +176,7 @@ bool init()
 	roadbmp.Load("models/road.png", GL_RGBA);
 	if (!roadbmp.GetBits()) return false;
 
-	particletex.Load("models/particle1.bmp", GL_RGBA);
+	particletex.Load("models/raindrop.bmp", GL_RGBA);
 	if (!particletex.GetBits()) return false;
 
 	watertex.Load("models/water.png", GL_RGBA);
@@ -194,8 +194,8 @@ bool init()
 	binoctex.Load("models/binocular.png", GL_RGBA);
 	if (!grassnormaltex.GetBits()) return false;
 
-	//sandnormaltex.Load("models/sandnormal.png", GL_RGBA);
-	//if (!sandnormaltex.GetBits()) return false;
+	sandnormaltex.Load("models/sandnormal.png", GL_RGBA);
+	if (!sandnormaltex.GetBits()) return false;
 
 	//Preparing Texture Buffer For Grass
 	glActiveTexture(GL_TEXTURE0);
@@ -221,13 +221,13 @@ bool init()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sandtex.GetWidth(), sandtex.GetHeight(), 0, GL_RGBA,
 		GL_UNSIGNED_BYTE, sandtex.GetBits());
 	
-	////Preparing Texture Buffer For Sand Normal Map
-	//glActiveTexture(GL_TEXTURE3);
-	//glGenTextures(1, &idTexSandNormal);
-	//glBindTexture(GL_TEXTURE_2D, idTexSandNormal);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sandnormaltex.GetWidth(), sandnormaltex.GetHeight(), 0, GL_RGBA,
-	//	GL_UNSIGNED_BYTE, sandnormaltex.GetBits());
+	//Preparing Texture Buffer For Sand Normal Map
+	glActiveTexture(GL_TEXTURE3);
+	glGenTextures(1, &idTexSandNormal);
+	glBindTexture(GL_TEXTURE_2D, idTexSandNormal);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sandnormaltex.GetWidth(), sandnormaltex.GetHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, sandnormaltex.GetBits());
 
 	//Preparing Texture Buffer For Road
 	glActiveTexture(GL_TEXTURE0);
@@ -333,11 +333,6 @@ bool init()
 	Program.SendUniform("fogDensity", 0.1f);
 	//Fog Colour For Objects
 	Program.SendUniform("fogColour", 0.47f, 0.4324f, 0.4324f);
-
-	//Fog For Water
-	ProgramWater.SendUniform("fogDensity", 0.1f);
-	//Fog Colour For Water
-	ProgramWater.SendUniform("fogColour", 0.47f, 0.4324f, 0.4324f);
 
 	// Send the texture info to the shaders
 	ProgramEffect.SendUniform("texture0", 0);
@@ -516,7 +511,6 @@ void render()
 			glClearColor(0.47f, 0.4324f, 0.4324f, 1.0f); // Foggy Sky
 			ProgramTerrain.SendUniform("fogon", 1);
 			Program.SendUniform("fogon", 1);
-			ProgramWater.SendUniform("fogon", 1);
 			ProgramParticle.SendUniform("weather", 1);
 		}
 		else // Make it Sunny
@@ -524,7 +518,6 @@ void render()
 			glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // Light Blue Sky 
 			ProgramTerrain.SendUniform("fogon", 0);
 			Program.SendUniform("fogon", 0);
-			ProgramWater.SendUniform("fogon", 0);
 			ProgramParticle.SendUniform("weather", 0);
 
 			//Temporarily set the Ambient light and Ambient material to white and diffuse material to black (This gets rid of the box and makes the skybox bright)
@@ -550,7 +543,6 @@ void render()
 		//Make sure the rain and fog is off 
 		ProgramTerrain.SendUniform("fogon", 0);
 		Program.SendUniform("fogon", 0);
-		ProgramWater.SendUniform("fogon", 0);
 		ProgramParticle.SendUniform("weather", 0);
 
 		//Turn on Both Ambient and Direction Light
@@ -609,8 +601,8 @@ void render()
 		//Point Light 5 (Diffuse)
 		ProgramTerrain.SendUniform("lightPoint5.on", 1);
 		Program.SendUniform("lightPoint5.on", 1);
-		ProgramTerrain.SendUniform("lightPoint5.position", 4.7f, 4.57f, -5.0f);
-		Program.SendUniform("lightPoint5.position", 4.7f, 4.57f, -5.0f);
+		ProgramTerrain.SendUniform("lightPoint5.position", -14.5f, 9.42f, -5.0f);
+		Program.SendUniform("lightPoint5.position", -14.5f, 9.42f, -5.0f);
 		ProgramTerrain.SendUniform("lightPoint5.diffuse", 0.4, 0.4, 0.4);
 		Program.SendUniform("lightPoint5.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 5 (Specular Extension)
@@ -620,8 +612,8 @@ void render()
 		//Point Light 6 (Diffuse)
 		ProgramTerrain.SendUniform("lightPoint6.on", 1);
 		Program.SendUniform("lightPoint6.on", 1);
-		ProgramTerrain.SendUniform("lightPoint6.position", 4.7f, 4.72f, 20.0f);
-		Program.SendUniform("lightPoint6.position", 4.7f, 4.72f, 20.0f);
+		ProgramTerrain.SendUniform("lightPoint6.position", -18.2f, 9.37f, 20.0f);
+		Program.SendUniform("lightPoint6.position", -18.2f, 9.37f, 20.0f);
 		ProgramTerrain.SendUniform("lightPoint6.diffuse", 0.4, 0.4, 0.4);
 		Program.SendUniform("lightPoint6.diffuse", 0.4, 0.4, 0.4);
 		//Point Light 6 (Specular Extension)
@@ -670,7 +662,7 @@ void render()
 	//Bind Grass Normal Map To Terrain
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexGrassNormal);
-	ProgramTerrain.SendUniform("textureNormal", 1);
+	ProgramTerrain.SendUniform("grassNormal", 1);
 
 	//Bind Sand Texture To Terrain
 	glActiveTexture(GL_TEXTURE2);
@@ -678,9 +670,9 @@ void render()
 	ProgramTerrain.SendUniform("textureBed", 2);
 
 	//Bind Sand Normal Map To Terrain **ATTEMPTED TO HAVE MORE THAN ONE NORMAL MAP
-	//glActiveTexture(GL_TEXTURE3);
-	//glBindTexture(GL_TEXTURE_2D, idTexSandNormal);
-	//ProgramTerrain.SendUniform("textureNormal", 3);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, idTexSandNormal);
+	ProgramTerrain.SendUniform("sandNormal", 3);
 
 	// render the terrain
 	m = translate(matrixView, vec3(0, 0, 0));
@@ -726,12 +718,12 @@ void render()
 	lamp.render(m);
 
 	//Black Lamp 5
-	m = translate(matrixView, vec3(4.7f, 3.35f, -5.0f));
+	m = translate(matrixView, vec3(-14.5f, 8.20f, -5.0f));
 	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
 	lamp.render(m);
 
 	//Black Lamp 6
-	m = translate(matrixView, vec3(4.7f, 3.5f, 20.0f));
+	m = translate(matrixView, vec3(-18.2f, 8.15f, 20.0f));
 	m = scale(m, vec3(0.0100f, 0.0100f, 0.0100f));
 	lamp.render(m);
 
@@ -769,14 +761,14 @@ void render()
 
 	//Bulb 5
 	m = matrixView;
-	m = translate(matrixView, vec3(4.7f, 4.57f, -5.0f));
+	m = translate(matrixView, vec3(-14.5f, 9.42f, -5.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
 	Program.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
 
 	//Bulb 6
 	m = matrixView;
-	m = translate(matrixView, vec3(4.7f, 4.72f, 20.0f));
+	m = translate(matrixView, vec3(-18.2f, 9.37f, 20.0f));
 	m = scale(m, vec3(0.125f, 0.125f, 0.125f));
 	Program.SendUniform("matrixModelView", m);
 	glutSolidSphere(1, 32, 32);
@@ -791,7 +783,7 @@ void render()
 	// RENDER THE PARTICLE SYSTEM
 	ProgramParticle.Use();
 
-	m = matrixView;
+	m = mat4(1);
 	m = scale(m, vec3(50.5f, 50.5f, 50.5f));
 	//m = translate(m, vec3(0.1, 0.0, 0.5));
 	//m = translate(m, cam);
@@ -877,7 +869,7 @@ void onKeyDown(unsigned char key, int x, int y)
 {
 	switch (tolower(key))
 	{
-	case 'w': cam.z = std::max(cam.z * 1.05f, 10.01f); break;
+	case 'w': cam.z = std::max(cam.z * 1.05f, 0.01f); break;
 	case 's': cam.z = std::min(cam.z * 1.05f, -0.01f); break;
 	case 'a': cam.x = std::max(cam.x * 1.05f, 0.01f); break;
 	case 'd': cam.x = std::min(cam.x * 1.05f, -0.01f); break;
