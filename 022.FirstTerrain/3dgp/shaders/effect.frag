@@ -31,15 +31,18 @@ float contrast = 0.5;
 uniform float intensityAdjust; // = 1;
 uniform float noiseAmplification; // 1
 uniform float bufferAmplication; // 1
+
+const float PI = 3.1415926535;
 // Output Variable (sent down through the Pipeline)
 out vec4 outColor;
 void main(void) 
 {
 
     if (effecton == 0)
-    {        
-        // If The User Hasn't Pressed The Button To Turn On Effects Then No effects will appear
+    {     
         outColor = texture(texture0, texCoord0);
+        // If The User Hasn't Pressed The Button To Turn On Effects Then No effects will appear
+
     }
     else
     {
@@ -172,6 +175,33 @@ void main(void)
  
             // final color
             outColor = (vec4(sceneColor, 1) + (vec4(noise, 1)*0.2)) * vec4(visionColor, 1) * vec4(goggleColor, 1);
+        }
+
+        else if (effect == 6) // Fish Eye Distortion
+        {
+                    float aperture = 178.0;
+        float apertureHalf = 0.5 * aperture * (PI / 180.0);
+        float maxFactor = sin(apertureHalf);
+  
+        vec2 uv;
+        vec2 xy = 2.0 * texCoord0.xy - 1.0;
+        float d = length(xy);
+        if (d < (2.0-maxFactor))
+        {
+        d = length(xy * maxFactor);
+        float z = sqrt(1.0 - d * d);
+        float r = atan(d, z) / PI;
+        float phi = atan(xy.y, xy.x);
+    
+        uv.x = r * cos(phi) + 0.5;
+        uv.y = r * sin(phi) + 0.5;
+        }
+        else
+        {
+        uv = texCoord0.xy;
+        }
+        vec4 c = texture2D(texture0, uv);
+        outColor = c;
         }
     }
 

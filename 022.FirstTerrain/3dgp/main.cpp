@@ -416,6 +416,7 @@ bool init()
 	cout << "  Press 3 for KERNEL EFFECT " << endl;
 	cout << "  Press 4 for EDGE DETECTION FILTER " << endl;
 	cout << "  Press 5 for NIGHT VISION GOGGLES" << endl;
+	cout << "  Press 6 for FISH EYE DISTORTION EFFECT" << endl;
 	cout << endl;
 
 
@@ -884,6 +885,7 @@ void onKeyDown(unsigned char key, int x, int y)
 	case '3': effect = 3; break;
 	case '4': effect = 4; break;
 	case '5': effect = 5; break;
+	case '6': effect = 6; break;
 
 
 	}
