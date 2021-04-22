@@ -262,7 +262,7 @@ bool init()
 		GL_UNSIGNED_BYTE, noisetex.GetBits());
 
 
-	//Preparing Texture Buffer For Noise
+	//Preparing Texture Buffer For Binoculars
 	glActiveTexture(GL_TEXTURE2);
 	glGenTextures(1, &idTexBinoc);
 	glBindTexture(GL_TEXTURE_2D, idTexBinoc);
@@ -669,7 +669,7 @@ void render()
 	glBindTexture(GL_TEXTURE_2D, idTexSand);
 	ProgramTerrain.SendUniform("textureBed", 2);
 
-	//Bind Sand Normal Map To Terrain **ATTEMPTED TO HAVE MORE THAN ONE NORMAL MAP
+	//Bind Sand Normal Map To Terrain 
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, idTexSandNormal);
 	ProgramTerrain.SendUniform("sandNormal", 3);
