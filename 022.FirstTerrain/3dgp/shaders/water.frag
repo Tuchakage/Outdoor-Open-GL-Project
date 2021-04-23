@@ -4,8 +4,7 @@
 uniform vec3 waterColor;
 uniform vec3 skyColor;
 uniform sampler2D texture0;
-uniform samplerCube textureCubeMap;
-uniform float reflectionPower;
+
 
 
 // Input Variables (received from Vertex Shader)
@@ -26,9 +25,6 @@ void main(void)
 	//This gives the water its Colour and transparancy
 	outColor = mix(vec4(waterColor,0.2), vec4(skyColor,1.0), reflFactor);
 
-	//outColor *= texture(texture0, texCoord0);
-
-	outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap, texCoordCubeMap), reflectionPower);
-
-
+	// Adding Water Texture
+	outColor *= texture(texture0, texCoord0);
 }
